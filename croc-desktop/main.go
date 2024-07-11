@@ -1,16 +1,20 @@
 package main
 
 import (
+	"archive/zip"
+	"context"
 	"embed"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
@@ -23,8 +27,8 @@ func main() {
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:  "croc-desktop",
-		Width:  1024,
-		Height: 768,
+		Width:  450,
+		Height: 800,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -43,12 +47,19 @@ func main() {
 
 type Install struct {
 	InstallPath string
+	ctx         context.Context
+}
+
+func (i *Install) SetContext(ctx context.Context) {
+	i.ctx = ctx
 }
 
 func (i *Install) Install() {
 	if i.InstallPath == "" {
 		println("Fatal error: InstallPath is empty.")
+		return
 	}
+
 	if runtime.GOOS == "windows" {
 		println("Installing to " + i.InstallPath)
 		var url string
@@ -56,21 +67,117 @@ func (i *Install) Install() {
 			url = "https://github.com/schollz/croc/releases/download/v10.0.10/croc_v10.0.10_Windows-ARM.zip"
 		} else if runtime.GOARCH == "386" {
 			url = "https://github.com/schollz/croc/releases/download/v10.0.10/croc_v10.0.10_Windows-64bit.zip"
-			// download and unzip
 		}
+
+		// Download the zip file
 		resp, err := http.Get(url)
 		if err != nil {
 			println("Error downloading croc:", err.Error())
+			return
 		}
 		defer resp.Body.Close()
-		// move to install path
-		out, err := os.Create(i.InstallPath + strings.Split(url, "/")[len(strings.Split(url, "/"))-1])
+
+		// Create the destination file
+		zipPath := filepath.Join(i.InstallPath, filepath.Base(url))
+		out, err := os.Create(zipPath)
 		if err != nil {
 			println("Error creating file:", err.Error())
+			return
 		}
 		defer out.Close()
-		_, _ = io.Copy(out, resp.Body)
+
+		// Copy the downloaded content to the destination file
+		_, err = io.Copy(out, resp.Body)
+		if err != nil {
+			println("Error saving downloaded file:", err.Error())
+			return
+		}
+
+		// Unzip the downloaded file
+		err = unzip(zipPath, i.InstallPath)
+		if err != nil {
+			println("Error unzipping file:", err.Error())
+			return
+		}
+
+		// Remove the zip file after extraction
+		err = os.Remove(zipPath)
+		if err != nil {
+			println("Error removing zip file:", err.Error())
+		}
+
+		// Add the installation path to the system PATH
+		err = addToPath(i.InstallPath)
+		if err != nil {
+			println("Error adding to PATH:", err.Error())
+		}
+
+		println("Installation completed successfully.")
 	} else {
 		println("Unsupported OS")
 	}
+}
+
+func unzip(src, dest string) error {
+	r, err := zip.OpenReader(src)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		fpath := filepath.Join(dest, f.Name)
+
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(fpath, os.ModePerm)
+			continue
+		}
+
+		if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+			return err
+		}
+
+		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		if err != nil {
+			return err
+		}
+
+		rc, err := f.Open()
+		if err != nil {
+			outFile.Close()
+			return err
+		}
+
+		_, err = io.Copy(outFile, rc)
+		outFile.Close()
+		rc.Close()
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func addToPath(path string) error {
+	cmd := exec.Command("powershell", "-Command", "[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', [EnvironmentVariableTarget]::User) + ';' + '"+path+"', [EnvironmentVariableTarget]::User)")
+	return cmd.Run()
+}
+
+func (i *Install) CheckInstall() bool {
+	cmd := exec.Command("croc", "--version")
+	err := cmd.Run()
+	return err == nil
+}
+
+// Create a folder dialog and return the selected folder
+func (i *Install) SelectFolder() string {
+	dir, err := wailsRuntime.OpenDirectoryDialog(i.ctx, wailsRuntime.OpenDialogOptions{
+		Title: "Select Installation Directory",
+	})
+	if err != nil {
+		println("Error:", err.Error())
+		return ""
+	}
+	return dir
 }
