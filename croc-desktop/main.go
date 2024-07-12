@@ -37,6 +37,7 @@ func main() {
 		Bind: []interface{}{
 			app,
 			app.install,
+			&croc{},
 		},
 	})
 
@@ -214,4 +215,10 @@ func (a *App) startup(ctx context.Context) {
 // Quit function
 func (a *App) Quit() {
 	wailsRuntime.Quit(a.ctx)
+}
+
+type croc struct{}
+
+func (c *croc) SendFile(file string) {
+	// Send the file using croc
 }
