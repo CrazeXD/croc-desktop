@@ -37,13 +37,11 @@
             /* Sit on top */
         }
     </style>
-    <script src="./src/main.js"></script>
 </head>
 
 <body>
-    <div id="installpopup">
-        <div id="installpopup-content"
-            style="background-color: white; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%;">
+    <div id="installpopup" class="popup">
+        <div id="installpopup-content">
             <span class="close">&times;</span>
             <h2>Install croc</h2>
             <p>It seems that croc is not installed. Would you like to install it?</p>
@@ -54,9 +52,9 @@
     <div id="app">
         <h1>croc - desktop wrapper</h1>
         <p>A desktop wrapper of <a href="https://github.com/schollz/croc">https://github.com/schollz/croc</a>.</p>
-        <button onclick="checkInstall()">Check install</button>
     </div>
-
+    <!--Import as a module-->
+    <script type="module" src="src/main.js"></script>
 </body>
 
 </html>

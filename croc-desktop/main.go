@@ -36,7 +36,7 @@ func main() {
 		OnStartup:        app.startup,
 		Bind: []interface{}{
 			app,
-			&Install{},
+			app.install,
 		},
 	})
 
@@ -55,6 +55,7 @@ func (i *Install) SetContext(ctx context.Context) {
 }
 
 func (i *Install) Install() {
+	i.InstallPath = i.SelectFolder()
 	if i.InstallPath == "" {
 		println("Fatal error: InstallPath is empty.")
 		return
@@ -65,10 +66,10 @@ func (i *Install) Install() {
 		var url string
 		if runtime.GOARCH == "arm64" {
 			url = "https://github.com/schollz/croc/releases/download/v10.0.10/croc_v10.0.10_Windows-ARM.zip"
-		} else if runtime.GOARCH == "386" {
+		} else {
 			url = "https://github.com/schollz/croc/releases/download/v10.0.10/croc_v10.0.10_Windows-64bit.zip"
 		}
-
+		println(runtime.GOARCH, url)
 		// Download the zip file
 		resp, err := http.Get(url)
 		if err != nil {
@@ -172,6 +173,10 @@ func (i *Install) CheckInstall() bool {
 
 // Create a folder dialog and return the selected folder
 func (i *Install) SelectFolder() string {
+	if i.ctx == nil {
+		println("Error: context is not set")
+		return ""
+	}
 	dir, err := wailsRuntime.OpenDirectoryDialog(i.ctx, wailsRuntime.OpenDialogOptions{
 		Title: "Select Installation Directory",
 	})
@@ -180,4 +185,33 @@ func (i *Install) SelectFolder() string {
 		return ""
 	}
 	return dir
+}
+
+// App struct
+type App struct {
+	ctx     context.Context
+	install *Install
+}
+
+// NewApp creates a new App application struct
+func NewApp() *App {
+	return &App{
+		install: &Install{},
+	}
+}
+
+// startup is called when the app starts. The context is saved
+// so we can call the runtime methods
+func (a *App) startup(ctx context.Context) {
+	a.ctx = ctx
+	if a.install != nil {
+		a.install.SetContext(ctx)
+	} else {
+		println("Warning: install is nil in startup")
+	}
+}
+
+// Quit function
+func (a *App) Quit() {
+	wailsRuntime.Quit(a.ctx)
 }
