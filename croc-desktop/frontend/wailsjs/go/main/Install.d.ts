@@ -8,4 +8,4 @@ export function Install():Promise<void>;
 
 export function SelectFolder():Promise<string>;
 
-export function SetContext(arg1:context.Context):Promise<void>;
+export function Startup(arg1:context.Context):Promise<void>;

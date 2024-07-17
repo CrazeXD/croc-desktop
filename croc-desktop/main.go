@@ -2,8 +2,10 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"embed"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -17,27 +19,32 @@ import (
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-//go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
 	// Create an instance of the app structure
 	app := NewApp()
+	croc := NewCroc()
+	install := NewInstall()
 
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:  "croc-desktop",
 		Width:  450,
-		Height: 800,
+		Height: 650,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
+		OnStartup: func(ctx context.Context) {
+			app.startup(ctx)
+			croc.Startup(ctx)
+			install.Startup(ctx)
+		},
 		Bind: []interface{}{
 			app,
-			app.install,
-			&croc{},
+			install,
+			croc,
 		},
 	})
 
@@ -51,7 +58,11 @@ type Install struct {
 	ctx         context.Context
 }
 
-func (i *Install) SetContext(ctx context.Context) {
+func NewInstall() *Install {
+	return &Install{}
+}
+
+func (i *Install) Startup(ctx context.Context) {
 	i.ctx = ctx
 }
 
@@ -205,11 +216,7 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	if a.install != nil {
-		a.install.SetContext(ctx)
-	} else {
-		println("Warning: install is nil in startup")
-	}
+	a.install.Startup(ctx)
 }
 
 // Quit function
@@ -217,8 +224,76 @@ func (a *App) Quit() {
 	wailsRuntime.Quit(a.ctx)
 }
 
-type croc struct{}
+type Croc struct {
+	ctx context.Context
+}
 
-func (c *croc) SendFile(file string) {
-	// Send the file using croc
+func NewCroc() *Croc {
+	return &Croc{}
+}
+
+func (c *Croc) Startup(ctx context.Context) {
+	c.ctx = ctx
+}
+
+func (c *Croc) SendFile(file string) {
+	if c.ctx == nil {
+		println("Error: Croc context is not set in SendFile")
+		return
+	}
+
+	wailsRuntime.LogInfo(c.ctx, fmt.Sprintf("Attempting to send file: %s", file))
+
+	cmd := exec.Command("croc", "send", file)
+
+	// Capture stdout and stderr separately
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	wailsRuntime.LogInfo(c.ctx, fmt.Sprintf("Command executed. Stdout: %s", stdout.String()))
+	wailsRuntime.LogInfo(c.ctx, fmt.Sprintf("Command executed. Stderr: %s", stderr.String()))
+
+	if err != nil {
+		errMsg := fmt.Sprintf("Error running croc command: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
+		wailsRuntime.LogError(c.ctx, errMsg)
+		fmt.Println(errMsg)
+	} else {
+		successMsg := fmt.Sprintf("File send command completed. Stdout: %s", stdout.String())
+		wailsRuntime.LogInfo(c.ctx, successMsg)
+		fmt.Println(successMsg)
+	}
+
+	// Check if the command is still running
+	if cmd.ProcessState == nil {
+		wailsRuntime.LogInfo(c.ctx, "Command is still running or did not start")
+	} else {
+		wailsRuntime.LogInfo(c.ctx, fmt.Sprintf("Command exited with status: %v", cmd.ProcessState.ExitCode()))
+	}
+}
+
+func (c *Croc) ReceiveCode(code string) {
+	cmd := exec.Command("croc", code)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		wailsRuntime.LogError(c.ctx, fmt.Sprintf("could not run command: %v", err))
+	}
+	wailsRuntime.LogInfo(c.ctx, string(out))
+}
+
+func (c *Croc) OpenFile() {
+	if c.ctx == nil {
+		println("Error: Croc context is not set")
+		return
+	}
+	file, err := wailsRuntime.OpenFileDialog(c.ctx, wailsRuntime.OpenDialogOptions{
+		Title: "Select File",
+	})
+	if err != nil {
+		wailsRuntime.LogError(c.ctx, fmt.Sprintf("Error opening file dialog: %v", err))
+		return
+	}
+	c.SendFile(file)
 }

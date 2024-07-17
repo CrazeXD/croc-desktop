@@ -4,16 +4,84 @@
 <head>
     <meta charset="UTF-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>croc</title>
-    <link rel="stylesheet" href="src/style.css">
+    <title>croc - Desktop Wrapper</title>
     <style>
-        a {
-            color: #007bff;
-            text-decoration: none;
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2980b9;
+            --background-color: #2c3e50;
+            --text-color: #ecf0f1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
         body {
-            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        p {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .actions {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        button, input {
+            width: 100%;
+            max-width: 300px;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: var(--secondary-color);
+        }
+
+        input {
+            background-color: #34495e;
+            color: var(--text-color);
         }
 
         #installpopup {
@@ -23,17 +91,16 @@
             top: 0;
             width: 100%;
             height: 100%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.4);
+            background-color: rgba(0, 0, 0, 0.7);
             z-index: 1000;
         }
 
         #installpopup-content {
-            background-color: #2c3e50;
+            background-color: var(--background-color);
             margin: 15% auto;
             padding: 20px;
             border-radius: 5px;
-            width: 75%;
+            width: 90%;
             max-width: 400px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
@@ -49,32 +116,23 @@
         .close:hover,
         .close:focus {
             color: #fff;
-            text-decoration: none;
-            cursor: pointer;
         }
 
-        button {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            margin: 10px 5px;
-            border-radius: 3px;
-            cursor: pointer;
-            transition: background-color 0.3s;
+        .popup-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
         }
 
-        button:hover {
-            background-color: #2980b9;
+        .popup-buttons button {
+            max-width: 100px;
         }
 
-        .slide-transition {
-            transition: transform 0.5s ease-out;
-            transform: translateY(0);
-        }
-
-        #content.slide-up {
-            transform: translateY(-40vh);
+        @media (max-width: 600px) {
+            .container {
+                padding: 10px;
+            }
         }
     </style>
 </head>
@@ -82,20 +140,28 @@
 <body>
     <div id="app">
         <div id="installpopup">
-            <div id="installpopup-content" class="popup">
+            <div id="installpopup-content">
                 <span class="close">&times;</span>
                 <h2>Install croc</h2>
                 <p>It seems that croc is not installed. Would you like to install it?</p>
-                <button id="installpopup-yes">Yes</button>
-                <button id="installpopup-no">No</button>
+                <div class="popup-buttons">
+                    <button id="installpopup-no">No</button>
+                    <button id="installpopup-yes">Yes</button>
+                </div>
             </div>
         </div>
-        <div id="content" class="slide-transition">
-            <h1>croc - desktop wrapper</h1>
-            <p>A desktop wrapper of <a href="https://github.com/schollz/croc">https://github.com/schollz/croc</a>.</p>
+        <div id="content">
+            <div class="container">
+                <h1>croc - Desktop Wrapper</h1>
+                <p>A desktop wrapper of <a href="https://github.com/schollz/croc" target="_blank">croc</a>.</p>
+                <div class="actions">
+                    <button id="send">Send file</button>
+                    <input type="text" id="code" placeholder="Enter code to receive file" />
+                    <button id="receive">Receive file</button>
+                </div>
+            </div>
         </div>
     </div>
-    <!--Import as a module-->
     <script type="module" src="src/main.js"></script>
 </body>
 

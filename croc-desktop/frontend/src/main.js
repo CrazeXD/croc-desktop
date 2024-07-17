@@ -1,5 +1,6 @@
 import { Install, CheckInstall } from "../wailsjs/go/main/Install"
 import { Quit } from "../wailsjs/go/main/App"
+import { OpenFile } from "../wailsjs/go/main/Croc"
 import "./app.css"
 
 let installed = false;
@@ -12,7 +13,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         document.getElementById("installpopup-yes").addEventListener("click", () => runInstall("croc"));
     }
     const installPopup = document.getElementById('installpopup');
-    
+
 
     // Check if croc is installed (you'll need to implement this check)
     let isCrocInstalled = installed; // Replace with actual check
@@ -49,3 +50,8 @@ async function checkInstall() {
         return false;
     }
 }
+
+document.getElementById("send").addEventListener("click", async function () {
+    await OpenFile();
+}
+);

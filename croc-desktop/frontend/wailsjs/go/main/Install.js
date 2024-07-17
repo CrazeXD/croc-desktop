@@ -14,6 +14,6 @@ export function SelectFolder() {
   return window['go']['main']['Install']['SelectFolder']();
 }
 
-export function SetContext(arg1) {
-  return window['go']['main']['Install']['SetContext'](arg1);
+export function Startup(arg1) {
+  return window['go']['main']['Install']['Startup'](arg1);
 }
