@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -266,12 +265,9 @@ func (c *Croc) SendFile(file string) string {
 		return ""
 	}
 
-	var code string
-	var wg sync.WaitGroup
-	wg.Add(2)
+	codeChan := make(chan string)
 
 	go func() {
-		defer wg.Done()
 		scanner := bufio.NewScanner(stdoutPipe)
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -280,30 +276,30 @@ func (c *Croc) SendFile(file string) string {
 	}()
 
 	go func() {
-		defer wg.Done()
 		scanner := bufio.NewScanner(stderrPipe)
 		for scanner.Scan() {
 			line := scanner.Text()
 			wailsRuntime.LogError(c.ctx, fmt.Sprintf("Stderr: %s", line))
 			if strings.HasPrefix(line, "Code is: ") {
-				code = strings.TrimPrefix(line, "Code is: ")
+				code := strings.TrimPrefix(line, "Code is: ")
 				wailsRuntime.LogInfo(c.ctx, fmt.Sprintf("Code is: %s", code))
+				codeChan <- code
+				close(codeChan)
+				break
 			}
 		}
 	}()
 
-	// Wait for both goroutines to finish
-	wg.Wait()
+	go func() {
+		err := cmd.Wait()
+		if err != nil {
+			wailsRuntime.LogError(c.ctx, fmt.Sprintf("Command finished with error: %v", err))
+		} else {
+			wailsRuntime.LogInfo(c.ctx, "Command finished successfully")
+		}
+	}()
 
-	// Wait for the command to finish
-	err = cmd.Wait()
-	if err != nil {
-		wailsRuntime.LogError(c.ctx, fmt.Sprintf("Command finished with error: %v", err))
-	} else {
-		wailsRuntime.LogInfo(c.ctx, "Command finished successfully")
-	}
-
-	return code
+	return <-codeChan
 }
 
 func (c *Croc) ReceiveCode(code string) {

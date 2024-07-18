@@ -57,7 +57,8 @@ async function send() {
     try {
         let code = await window.go.main.Croc.OpenFile();
         console.log("Received code:", code);
-        // Use the code here
+        document.getElementById("code").innerText = "Type this code into the other computer:" + code;
+        document.getElementById("codewrapper").style.display = "block";
     } catch (error) {
         console.error("Error in send function:", error);
     }
