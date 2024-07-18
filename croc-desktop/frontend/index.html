@@ -134,6 +134,9 @@
                 padding: 10px;
             }
         }
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 
@@ -156,6 +159,9 @@
                 <p>A desktop wrapper of <a href="https://github.com/schollz/croc" target="_blank">croc</a>.</p>
                 <div class="actions">
                     <button id="send">Send file</button>
+                    <div class="hidden" id="codewrapper">
+                        <div id="code"></div>
+                    </div>
                     <input type="text" id="code" placeholder="Enter code to receive file" />
                     <button id="receive">Receive file</button>
                 </div>

@@ -51,7 +51,14 @@ async function checkInstall() {
     }
 }
 
-document.getElementById("send").addEventListener("click", async function () {
-    await OpenFile();
+document.getElementById("send").addEventListener("click", send);
+
+async function send() {
+    try {
+        let code = await window.go.main.Croc.OpenFile();
+        console.log("Received code:", code);
+        // Use the code here
+    } catch (error) {
+        console.error("Error in send function:", error);
+    }
 }
-);

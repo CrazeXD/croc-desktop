@@ -2,7 +2,7 @@ package main
 
 import (
 	"archive/zip"
-	"bytes"
+	"bufio"
 	"context"
 	"embed"
 	"fmt"
@@ -12,6 +12,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"sync"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -35,6 +37,7 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
+		DisableResize:    true,
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
@@ -236,42 +239,71 @@ func (c *Croc) Startup(ctx context.Context) {
 	c.ctx = ctx
 }
 
-func (c *Croc) SendFile(file string) {
+func (c *Croc) SendFile(file string) string {
 	if c.ctx == nil {
 		println("Error: Croc context is not set in SendFile")
-		return
+		return ""
 	}
 
 	wailsRuntime.LogInfo(c.ctx, fmt.Sprintf("Attempting to send file: %s", file))
 
 	cmd := exec.Command("croc", "send", file)
+	fmt.Printf("Running command: %v\n", cmd)
 
-	// Capture stdout and stderr separately
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-
-	wailsRuntime.LogInfo(c.ctx, fmt.Sprintf("Command executed. Stdout: %s", stdout.String()))
-	wailsRuntime.LogInfo(c.ctx, fmt.Sprintf("Command executed. Stderr: %s", stderr.String()))
-
+	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		errMsg := fmt.Sprintf("Error running croc command: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
-		wailsRuntime.LogError(c.ctx, errMsg)
-		fmt.Println(errMsg)
-	} else {
-		successMsg := fmt.Sprintf("File send command completed. Stdout: %s", stdout.String())
-		wailsRuntime.LogInfo(c.ctx, successMsg)
-		fmt.Println(successMsg)
+		wailsRuntime.LogError(c.ctx, fmt.Sprintf("Error creating stdout pipe: %v", err))
+		return ""
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		wailsRuntime.LogError(c.ctx, fmt.Sprintf("Error creating stderr pipe: %v", err))
+		return ""
 	}
 
-	// Check if the command is still running
-	if cmd.ProcessState == nil {
-		wailsRuntime.LogInfo(c.ctx, "Command is still running or did not start")
-	} else {
-		wailsRuntime.LogInfo(c.ctx, fmt.Sprintf("Command exited with status: %v", cmd.ProcessState.ExitCode()))
+	if err := cmd.Start(); err != nil {
+		wailsRuntime.LogError(c.ctx, fmt.Sprintf("Error starting command: %v", err))
+		return ""
 	}
+
+	var code string
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stdoutPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			wailsRuntime.LogInfo(c.ctx, fmt.Sprintf("Stdout: %s", line))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			wailsRuntime.LogError(c.ctx, fmt.Sprintf("Stderr: %s", line))
+			if strings.HasPrefix(line, "Code is: ") {
+				code = strings.TrimPrefix(line, "Code is: ")
+				wailsRuntime.LogInfo(c.ctx, fmt.Sprintf("Code is: %s", code))
+			}
+		}
+	}()
+
+	// Wait for both goroutines to finish
+	wg.Wait()
+
+	// Wait for the command to finish
+	err = cmd.Wait()
+	if err != nil {
+		wailsRuntime.LogError(c.ctx, fmt.Sprintf("Command finished with error: %v", err))
+	} else {
+		wailsRuntime.LogInfo(c.ctx, "Command finished successfully")
+	}
+
+	return code
 }
 
 func (c *Croc) ReceiveCode(code string) {
@@ -283,17 +315,18 @@ func (c *Croc) ReceiveCode(code string) {
 	wailsRuntime.LogInfo(c.ctx, string(out))
 }
 
-func (c *Croc) OpenFile() {
+func (c *Croc) OpenFile() string {
 	if c.ctx == nil {
 		println("Error: Croc context is not set")
-		return
+		return ""
 	}
 	file, err := wailsRuntime.OpenFileDialog(c.ctx, wailsRuntime.OpenDialogOptions{
 		Title: "Select File",
 	})
 	if err != nil {
 		wailsRuntime.LogError(c.ctx, fmt.Sprintf("Error opening file dialog: %v", err))
-		return
+		return ""
 	}
-	c.SendFile(file)
+	code := c.SendFile(file)
+	return code
 }
